@@ -1,0 +1,179 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>NovaBank | Dashboard</title><link rel="stylesheet" href="css/style.css"></head><body>
+<div class="app-shell"><aside class="sidebar"><div class="brand"><span class="brand-mark">N</span> NovaBank</div><div class="side-label">Workspace</div><nav class="side-nav"><a class="active" href="dashboard.html"><span class="nav-icon">⌂</span> Overview</a><a href="#accounts"><span class="nav-icon">▣</span> My accounts</a><a href="#actions"><span class="nav-icon">↗</span> Payments</a><a href="#history"><span class="nav-icon">≡</span> Transactions</a></nav><div class="side-label">Account</div><nav class="side-nav"><a href="#profile"><span class="nav-icon">◉</span> Profile</a></nav><div class="sidebar-bottom"><button onclick="logout()">↪ &nbsp; Sign out</button></div></aside>
+<main class="main-area"><header class="topbar"><div></div><div class="user-info"><div class="avatar" id="avatar">U</div><span class="user-name" id="welcomeName"></span><button class="logout" onclick="logout()">Sign out</button></div></header><div class="page">
+<div class="page-head"><div><h1>Overview</h1><p>Welcome back. Here's your financial snapshot.</p></div><button class="secondary" id="openAccountBtn">＋ Open account</button></div>
+<section class="summary-grid"><div class="balance-card"><div class="balance-label">TOTAL AVAILABLE BALANCE</div><div class="balance-amount" id="totalBalance">₹0.00</div><div class="balance-meta"><span>NovaBank Digital</span><span>● Protected account</span></div></div><div class="metric-card"><div class="metric-icon">▣</div><div class="metric-value" id="accountCount">0</div><div class="metric-label">Active accounts</div></div><div class="metric-card"><div class="metric-icon">₹</div><div class="metric-value">INR</div><div class="metric-label">Primary currency</div></div></section>
+<div class="section-title" id="accounts"><h2>Your accounts</h2><span style="font-size:12px;color:var(--muted)">Select an account to manage it</span></div><div class="grid cols-3" id="accountsGrid"></div>
+<div id="mainPanel" class="action-panel hidden"><div class="section-title" id="actions"><h2>Manage selected account</h2></div><div class="tabs"><button class="tab-btn active" data-tab="deposit">Deposit</button><button class="tab-btn" data-tab="withdraw">Withdraw</button><button class="tab-btn" data-tab="transfer">Transfer</button><button class="tab-btn" data-tab="history">History</button></div><div class="card"><div id="alertBox"></div>
+<div class="tab-panel" id="panel-deposit"><h3>Add money</h3><p style="color:var(--muted);font-size:12px">Deposit funds into your selected account.</p><form id="depositForm"><label>Amount</label><input type="number" min="0.01" step="0.01" id="depositAmount" required placeholder="0.00"><label>Note (optional)</label><input type="text" id="depositNote" placeholder="e.g. Salary credit"><button class="primary" type="submit">Confirm deposit</button></form></div>
+<div class="tab-panel hidden" id="panel-withdraw"><h3>Withdraw money</h3><p style="color:var(--muted);font-size:12px">Withdraw from your selected account.</p><form id="withdrawForm"><label>Amount</label><input type="number" min="0.01" step="0.01" id="withdrawAmount" required placeholder="0.00"><label>Note (optional)</label><input type="text" id="withdrawNote" placeholder="e.g. ATM withdrawal"><button class="primary" type="submit">Confirm withdrawal</button></form></div>
+<div class="tab-panel hidden" id="panel-transfer"><h3>Send money</h3><p style="color:var(--muted);font-size:12px">Transfer funds to another NovaBank account.</p><form id="transferForm"><label>Recipient account number</label><input type="text" id="transferTo" required placeholder="12-digit account number"><label>Amount</label><input type="number" min="0.01" step="0.01" id="transferAmount" required placeholder="0.00"><label>Note (optional)</label><input type="text" id="transferNote" placeholder="e.g. Rent"><button class="primary" type="submit">Send transfer</button></form></div>
+<div class="tab-panel hidden" id="panel-history"><h3>Transaction history</h3><div id="historyWrap"><div class="empty-state">Select an account to view its history.</div></div></div></div></div><p class="footer-note">NovaBank Management System · Educational project prototype</p></div></main></div>
+<script src="js/api.js"></script><script>requireLogin();
+    const user = getUser();
+    document.getElementById('welcomeName').textContent = `Hi, ${user.fullName.split(' ')[0]}`;
+
+    let accounts = [];
+    let selectedAccountId = null;
+
+    const accountsGrid = document.getElementById('accountsGrid');
+    const mainPanel = document.getElementById('mainPanel');
+    const alertBox = document.getElementById('alertBox');
+
+    function showAlert(message, type = 'error') {
+      alertBox.innerHTML = `<div class="alert ${type}">${message}</div>`;
+      setTimeout(() => { alertBox.innerHTML = ''; }, 4000);
+    }
+
+    function renderAccounts() {
+      if (accounts.length === 0) {
+        accountsGrid.innerHTML = '<div class="empty-state">No accounts yet. Open one to get started.</div>';
+        return;
+      }
+      accountsGrid.innerHTML = accounts.map((a) => `
+        <div class="account-card ${a.id === selectedAccountId ? 'selected' : ''}" data-id="${a.id}">
+          <div class="type">${a.accountType} account</div>
+          <div class="num">${a.accountNumber}</div>
+          <div class="balance">${formatMoney(a.balance, a.currency)}</div>
+          <div class="status">Status: ${a.status}</div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('.account-card').forEach((el) => {
+        el.addEventListener('click', () => {
+          selectedAccountId = el.dataset.id;
+          renderAccounts();
+          mainPanel.classList.remove('hidden');
+          const activeTab = document.querySelector('.tab-btn.active').dataset.tab;
+          if (activeTab === 'history') loadHistory();
+        });
+      });
+    }
+
+    async function loadAccounts() {
+      try {
+        const data = await apiRequest('/accounts/me');
+        accounts = data.accounts;
+        if (!selectedAccountId && accounts.length) selectedAccountId = accounts[0].id;
+        renderAccounts();
+      } catch (err) {
+        showAlert(err.message);
+      }
+    }
+
+    document.getElementById('openAccountBtn').addEventListener('click', async () => {
+      const type = prompt('Account type: type "savings" or "current"', 'savings');
+      if (!type) return;
+      try {
+        await apiRequest('/accounts', { method: 'POST', body: { accountType: type } });
+        await loadAccounts();
+        showAlert('New account opened successfully.', 'success');
+      } catch (err) {
+        showAlert(err.message);
+      }
+    });
+
+    // Tabs
+    document.querySelectorAll('.tab-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tab-btn').forEach((b) => b.classList.remove('active'));
+        document.querySelectorAll('.tab-panel').forEach((p) => p.classList.add('hidden'));
+        btn.classList.add('active');
+        document.getElementById(`panel-${btn.dataset.tab}`).classList.remove('hidden');
+        if (btn.dataset.tab === 'history') loadHistory();
+      });
+    });
+
+    function requireSelectedAccount() {
+      if (!selectedAccountId) {
+        showAlert('Select an account first.');
+        return false;
+      }
+      return true;
+    }
+
+    document.getElementById('depositForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSelectedAccount()) return;
+      const amount = document.getElementById('depositAmount').value;
+      const note = document.getElementById('depositNote').value;
+      try {
+        await apiRequest('/transactions/deposit', {
+          method: 'POST', body: { accountId: selectedAccountId, amount, note },
+        });
+        e.target.reset();
+        await loadAccounts();
+        showAlert('Deposit successful.', 'success');
+      } catch (err) { showAlert(err.message); }
+    });
+
+    document.getElementById('withdrawForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSelectedAccount()) return;
+      const amount = document.getElementById('withdrawAmount').value;
+      const note = document.getElementById('withdrawNote').value;
+      try {
+        await apiRequest('/transactions/withdraw', {
+          method: 'POST', body: { accountId: selectedAccountId, amount, note },
+        });
+        e.target.reset();
+        await loadAccounts();
+        showAlert('Withdrawal successful.', 'success');
+      } catch (err) { showAlert(err.message); }
+    });
+
+    document.getElementById('transferForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!requireSelectedAccount()) return;
+      const toAccountNumber = document.getElementById('transferTo').value.trim();
+      const amount = document.getElementById('transferAmount').value;
+      const note = document.getElementById('transferNote').value;
+      try {
+        const data = await apiRequest('/transactions/transfer', {
+          method: 'POST', body: { fromAccountId: selectedAccountId, toAccountNumber, amount, note },
+        });
+        e.target.reset();
+        await loadAccounts();
+        showAlert(`Transfer successful. Reference: ${data.reference}`, 'success');
+      } catch (err) { showAlert(err.message); }
+    });
+
+    async function loadHistory() {
+      const wrap = document.getElementById('historyWrap');
+      if (!selectedAccountId) {
+        wrap.innerHTML = '<div class="empty-state">Select an account to view its history.</div>';
+        return;
+      }
+      try {
+        const data = await apiRequest(`/transactions/account/${selectedAccountId}`);
+        if (!data.transactions.length) {
+          wrap.innerHTML = '<div class="empty-state">No transactions yet.</div>';
+          return;
+        }
+        wrap.innerHTML = `
+          <table>
+            <thead><tr><th>Date</th><th>Type</th><th>Reference</th><th>Note</th><th>Amount</th><th>Balance after</th></tr></thead>
+            <tbody>
+              ${data.transactions.map((t) => `
+                <tr>
+                  <td>${formatDate(t.createdAt)}</td>
+                  <td><span class="badge ${t.type}">${t.type.replace('_', ' ')}</span></td>
+                  <td>${t.reference}</td>
+                  <td>${t.note || '—'}</td>
+                  <td class="amount ${['deposit', 'transfer_in'].includes(t.type) ? 'positive' : 'negative'}">
+                    ${['deposit', 'transfer_in'].includes(t.type) ? '+' : '-'}${formatMoney(t.amount)}
+                  </td>
+                  <td>${formatMoney(t.balanceAfter)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `;
+      } catch (err) {
+        showAlert(err.message);
+      }
+    }
+
+    loadAccounts();</script><script>
+(function(){const grid=document.getElementById('accountsGrid');const observer=new MutationObserver(function(){const cards=grid.querySelectorAll('.account-card');document.getElementById('accountCount').textContent=cards.length;let total=0;cards.forEach(c=>{const b=c.querySelector('.balance');if(b){const n=parseFloat(b.textContent.replace(/[^0-9.-]/g,''));if(!isNaN(n))total+=n;}});document.getElementById('totalBalance').textContent=total.toLocaleString('en-IN',{style:'currency',currency:'INR'});const u=getUser();if(u){document.getElementById('avatar').textContent=(u.fullName||'User').trim().charAt(0).toUpperCase();}});observer.observe(grid,{childList:true,subtree:true});})();
+</script></body></html>

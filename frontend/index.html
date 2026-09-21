@@ -1,0 +1,78 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>NovaBank | Digital Banking</title><link rel="stylesheet" href="css/style.css"></head><body>
+<div class="auth-wrap"><section class="auth-visual"><div class="brand"><span class="brand-mark">N</span> NovaBank</div><div class="auth-copy"><div class="eyebrow">Digital banking platform</div><h1>Banking, built around you.</h1><p>Manage your accounts, move money and monitor every transaction from one secure, modern dashboard.</p><div class="trust-row"><div class="trust-item"><span class="trust-dot"></span> Secure authentication</div><div class="trust-item"><span class="trust-dot"></span> Real-time account updates</div><div class="trust-item"><span class="trust-dot"></span> Transaction tracking</div></div></div></section>
+<section class="auth-side"><div class="auth-card"><div class="mobile-brand brand"><span class="brand-mark">N</span> NovaBank</div><h1 id="formTitle">Welcome back</h1><p class="sub" id="formSub">Sign in to manage your accounts</p>
+<form id="loginForm"><label for="loginEmail">Email address</label><input type="email" id="loginEmail" required placeholder="you@example.com"><label for="loginPassword">Password</label><input type="password" id="loginPassword" required placeholder="Enter your password"><button type="submit" class="primary">Sign in securely</button></form>
+<form id="registerForm" class="hidden"><label for="regName">Full name</label><input type="text" id="regName" required placeholder="Jane Doe"><label for="regEmail">Email address</label><input type="email" id="regEmail" required placeholder="you@example.com"><label for="regPhone">Phone <span style="color:#8a98aa;font-weight:500">(optional)</span></label><input type="tel" id="regPhone" placeholder="+91 98765 43210"><div class="form-row"><div><label for="regPassword">Password</label><input type="password" id="regPassword" required placeholder="Min. 8 characters"></div><div><label for="regAccountType">Account type</label><select id="regAccountType"><option value="savings">Savings</option><option value="current">Current</option></select></div></div><button type="submit" class="primary">Create my account</button></form>
+<div id="alertBox"></div><p class="switch-link"><span id="toRegister">New here? <a href="#">Open a bank account</a></span><span id="toLogin" class="hidden">Already have an account? <a href="#">Sign in</a></span></p></div></section></div>
+<script src="js/api.js"></script><script>const loginForm = document.getElementById('loginForm');
+    const registerForm = document.getElementById('registerForm');
+    const toRegister = document.getElementById('toRegister');
+    const toLogin = document.getElementById('toLogin');
+    const formTitle = document.getElementById('formTitle');
+    const formSub = document.getElementById('formSub');
+    const alertBox = document.getElementById('alertBox');
+
+    // Redirect straight to dashboard if already logged in
+    if (getToken() && getUser()) {
+      window.location.href = getUser().role === 'admin' ? 'admin.html' : 'dashboard.html';
+    }
+
+    function showAlert(message, type = 'error') {
+      alertBox.innerHTML = `<div class="alert ${type}">${message}</div>`;
+    }
+    function clearAlert() { alertBox.innerHTML = ''; }
+
+    toRegister.querySelector('a').addEventListener('click', (e) => {
+      e.preventDefault();
+      loginForm.classList.add('hidden');
+      registerForm.classList.remove('hidden');
+      toRegister.classList.add('hidden');
+      toLogin.classList.remove('hidden');
+      formTitle.textContent = 'Open an account';
+      formSub.textContent = 'Register to start banking with us';
+      clearAlert();
+    });
+    toLogin.querySelector('a').addEventListener('click', (e) => {
+      e.preventDefault();
+      registerForm.classList.add('hidden');
+      loginForm.classList.remove('hidden');
+      toLogin.classList.add('hidden');
+      toRegister.classList.remove('hidden');
+      formTitle.textContent = 'Welcome back';
+      formSub.textContent = 'Sign in to manage your accounts';
+      clearAlert();
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert();
+      const email = document.getElementById('loginEmail').value.trim();
+      const password = document.getElementById('loginPassword').value;
+      try {
+        const data = await apiRequest('/auth/login', { method: 'POST', body: { email, password } });
+        saveSession(data.token, data.user);
+        window.location.href = data.user.role === 'admin' ? 'admin.html' : 'dashboard.html';
+      } catch (err) {
+        showAlert(err.message);
+      }
+    });
+
+    registerForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      clearAlert();
+      const fullName = document.getElementById('regName').value.trim();
+      const email = document.getElementById('regEmail').value.trim();
+      const phone = document.getElementById('regPhone').value.trim();
+      const password = document.getElementById('regPassword').value;
+      const accountType = document.getElementById('regAccountType').value;
+      try {
+        const data = await apiRequest('/auth/register', {
+          method: 'POST',
+          body: { fullName, email, phone, password, accountType },
+        });
+        saveSession(data.token, data.user);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        showAlert(err.message);
+      }
+    });</script></body></html>
