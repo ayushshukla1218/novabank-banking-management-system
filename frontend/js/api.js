@@ -1,5 +1,5 @@
 // Base URL of the backend API. Change this if your backend runs elsewhere.
-const API_BASE = 'http://localhost:5000/api';
+const API_BASE = 'https://novabank-banking-management-system.onrender.com/api';
 
 function getToken() {
   return localStorage.getItem('bms_token');
